@@ -236,7 +236,7 @@ watch(() => props.videoUrl, (newUrl) => {
 
 // 监听 is_exporting 变化，开始导出视频
 watch(is_exporting, async (is_export_cur) => {
-  // console.log("start exporting, ", is_export_cur)
+  console.log("start exporting, ", is_export_cur)
   if (!is_export_cur) {
     console.log("already finish export!")
     return;
@@ -259,7 +259,8 @@ watch(is_exporting, async (is_export_cur) => {
   let frameNumber = 0;
 
   const FRAME_INTERVAL_DEFAULT = 1.0 / FPS_DEFUALT;
-
+  const scale_factor = video.videoWidth/videoCanvas.value!.width;
+  console.log(scale_factor);
   const export_single_frame = () => {
     if (video.currentTime >= video.duration - FRAME_INTERVAL_DEFAULT) { // finish exporting, end of video.
       console.log("Finish exporting video!!!")
@@ -273,21 +274,24 @@ watch(is_exporting, async (is_export_cur) => {
         })
       return;
     }
-    // console.log("now exporting ", video.currentTime)
+    // console.log("export_progress: ", video.currentTime)
     // renew progress
     export_progress.value = Math.floor((video.currentTime / video.duration) * 100);
     ctx.drawImage(video, 0, 0, vw, vh);
     let imgData = ctx.getImageData(0, 0, vw, vh);
-    apply_filter(imgData, video.currentTime, [videoCanvas.value!.width, videoCanvas.value!.height])
+
+    apply_filter(imgData, video.currentTime, scale_factor);
+    
     video.currentTime += FRAME_INTERVAL_DEFAULT;
     ctx.putImageData(imgData, 0, 0);
-
     // use web-codec to encode the frame to video
     renderCanvas2FrameEncode(<OffscreenCanvas>exportCanvas, encoder, frameNumber, FPS_DEFUALT);
+    console.log("render canvas2frame done!")
     frameNumber += 1;
     video.requestVideoFrameCallback(export_single_frame);
   }
   video.requestVideoFrameCallback(export_single_frame);
+  video.play() // to get every frame, must set to play.
 });
 
 </script>

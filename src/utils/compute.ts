@@ -110,15 +110,14 @@ export const clamp = (value: number, min: number, max: number): number => {
 }
 
 // when export, the resolution is different !!!
-export const mask_zone_rect = (zonemask: boolean[], cvs_w: number, cvs_h: number, bbox: any,ori_WH:[number,number]|undefined=undefined) => {
+export const mask_zone_rect = (zonemask: boolean[], cvs_w: number, cvs_h: number, bbox: any, scale_factor:number|undefined=undefined) => {
   // pixel that outside the bbox should be false.
   let {left, top, width, height} = bbox;
-  if(ori_WH){
-    const [ori_w, ori_h] = ori_WH;
-    left = Math.round(left * cvs_w / ori_w);
-    top = Math.round(top * cvs_h / ori_h);
-    width = Math.round(width * cvs_w / ori_w);
-    height = Math.round(height * cvs_h / ori_h);
+  if(scale_factor){
+    left = Math.round(left * scale_factor);
+    top = Math.round(top * scale_factor);
+    width = Math.round(width * scale_factor);
+    height = Math.round(height * scale_factor);
   }
   
   for (let j = 0; j < cvs_h; j++) {

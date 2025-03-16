@@ -70,7 +70,7 @@ const changeRangeListConfig = (range_list_index: number, new_range: number[]) =>
   const old_range = new_range_list[range_list_index]['range']
   if(new_range[0] != old_range[0]){
     seek_range_start(new_range[0])
-  }else{
+  }else if(new_range[1] != old_range[1]){
     seek_range_start(new_range[1])
   }
   new_range_list[range_list_index]['range'] = new_range

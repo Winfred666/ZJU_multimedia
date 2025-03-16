@@ -120,7 +120,7 @@ const apply_HueSatLight_filter = (
 
 let zonemask_context: boolean[] = [];
 
-export const apply_filter = (imgData: any, cur_time: number, ori_WH:[number,number]|undefined=undefined) => {
+export const apply_filter = (imgData: any, cur_time: number, scale_factor:number|undefined=undefined) => {
   // each filter can only be applied within current zone_context,
   // pixels outside the zone_context should not be changed!!!!
   zonemask_context = Array(imgData.width * imgData.height).fill(true);
@@ -150,7 +150,7 @@ export const apply_filter = (imgData: any, cur_time: number, ori_WH:[number,numb
                 width,
                 height,
                 (range_zone.zone as fabric.Rect).getBoundingRect(),
-                ori_WH
+                scale_factor
               );
             }
           });
@@ -167,7 +167,14 @@ export const apply_filter = (imgData: any, cur_time: number, ori_WH:[number,numb
 
     switch (filter.value) {
       case AllFilters.MOSAIK:
-        apply_mosaik_filter(data, width, height, filter.config as MosaikConfig);
+        // need to adjust block size X and Y when ori_WH is provided
+        let config_clone = filter.config as MosaikConfig;
+        if (scale_factor){
+          config_clone = Object.assign({}, filter.config as MosaikConfig);
+          config_clone.blockSizeX = Math.floor(config_clone.blockSizeX * scale_factor);
+          config_clone.blockSizeY = Math.floor(config_clone.blockSizeY * scale_factor);
+        }
+        apply_mosaik_filter(data, width, height, config_clone);
         break;
       case AllFilters.GREYSCALE:
         apply_greyscale_filter(data);
@@ -176,7 +183,12 @@ export const apply_filter = (imgData: any, cur_time: number, ori_WH:[number,numb
         apply_HueSatLight_filter(data, filter.config as HueSatLightConfig);
         break;
       case AllFilters.GAUSSIAN:
-        const { kernel_size, sigma } = filter.config as GaussianConfig;
+        let { kernel_size, sigma } = filter.config as GaussianConfig;
+        if(scale_factor){
+          // make sure kernel_size is odd and kernel_size is at least 3
+          kernel_size = Math.max(3, Math.floor(kernel_size * scale_factor));
+          kernel_size += kernel_size % 2 == 0 ? 1 : 0;
+        }
         // prepare the kernel ahead
         let gs_kernel = gaussianKernel(kernel_size, sigma);
         apply_conv_filter(imgData, gs_kernel, kernel_size);
