@@ -51,7 +51,7 @@ import { MAX_KERNEL_SIZE } from '@/utils/apply_filters_webgl';
 import { computed } from 'vue'
 import { useEditorStore } from '@/stores/video';
 
-import { create_zone, delete_zone, renderZone } from "@/utils/zone_editor";
+import { create_zone, delete_zone } from "@/utils/zone_editor";
 
 const filterStore = useFilterStore()
 
