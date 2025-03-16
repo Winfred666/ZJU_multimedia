@@ -14,7 +14,7 @@ TODO list:
 
 ## Customize configuration
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+该项目 使用 Vue 3 + TypeScript + Vite，See [Vite Configuration Reference](https://vite.dev/config/).
 
 ## Project Setup
 

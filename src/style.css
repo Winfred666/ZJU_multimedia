@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* define default text, and all centered */
+:root {
+    @apply text-base font-normal select-none text-gray-800;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        @apply text-gray-200;
+    }
+}
+
+
+.p-fieldset-content-container {
+    @apply w-full h-full flex flex-col items-stretch justify-between;
+}
+
+.p-fieldset-content{
+    @apply grow;
+}
+
+.tag-group{
+    @apply w-full h-full flex flex-row gap-2 select-none flex-wrap justify-start items-center content-start;
+}
+
+.flip-list-move{
+    @apply transition-all duration-300 ease-in-out;
+}
+
+.ghost {
+  @apply opacity-50 bg-fuchsia-500 text-white;
+}

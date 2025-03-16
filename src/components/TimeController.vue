@@ -1,0 +1,86 @@
+<template>
+  <div class=" pt-2 flex flex-row items-center justify-around align-items-center gap-3">
+    <!-- Play/Pause Button -->
+    <Button :icon="is_play ? 'pi pi-pause' : 'pi pi-play'" @click="togglePlay" class="p-button-rounded" />
+
+    <!-- Rollback Button -->
+    <Button icon="pi pi-step-backward" @click="rollback" class="p-button-rounded" />
+
+    <!-- Progress Bar with Time Labels -->
+    <div class="flex flex-row items-center justify-center gap-4 grow">
+      <span class=" w-16">{{ formatTime(cur_time) }}</span>
+      <Slider v-model="cur_time" :min="edit_range[0]" :max="edit_range[1]" @change="onProgressChange"
+        class="w-full" :step="0.05"/>
+      <span class="w-16 ">{{ formatTime(edit_range[1]) }}</span>
+    </div>
+
+    <div class="flex items-center align-items-center gap-1">
+      <label for="loopSwitch">Loop:</label>
+      <ToggleSwitch id="loopSwitch" v-model="is_loop" />
+    </div>
+    <div class="flex items-center gap-1">
+      <label for="speedDropdown">Speed:</label>
+      <Select id="speedDropdown" v-model="play_speed" :options="speedOptions" optionLabel="label" optionValue="value"
+        placeholder="Select Speed" />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import Button from 'primevue/button';
+import Slider from 'primevue/slider';
+import ToggleSwitch  from 'primevue/toggleSwitch';
+import Select from 'primevue/select';
+
+import { useEditorStore } from '@/stores/video';
+import { storeToRefs } from 'pinia';
+
+
+const editorStore = useEditorStore();
+
+const { is_play, edit_range, is_loop, play_speed, new_seek_frame,cur_time } = storeToRefs(editorStore);
+// Reactive state for video playback
+// Example: set videoDuration to 300 seconds (5 minutes) or set it dynamically from your video element
+
+// Toggle play/pause state
+const togglePlay = () => {
+  // if cur_progress is at the end, reset to start
+  if(cur_time.value == edit_range.value[1]) {
+    rollback();
+  }
+  is_play.value = !is_play.value;
+};
+
+// Rollback to start (reset new_seek_frame)
+const rollback = () => {
+  if(new_seek_frame.value == 0) {
+    new_seek_frame.value = 0.01; // make sure it update.
+  }else {
+    new_seek_frame.value = 0;
+  }
+};
+
+// Handle slider change (if additional logic is needed)
+const onProgressChange = (value: number) => {
+  new_seek_frame.value = value;
+};
+
+// Format seconds into mm:ss:s's' string format
+const formatTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const pad = (num: number) => (num < 10 ? '0' + num : num);
+  return `${pad(minutes)}:${pad(secs)}`;
+};
+
+
+// Options for play speed
+const speedOptions = [
+  { label: '0.1x', value: 0.1 },
+  { label: '0.5x', value: 0.5 },
+  { label: '1x', value: 1 },
+  { label: '2x', value: 2 }
+];
+
+
+</script>
