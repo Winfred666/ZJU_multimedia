@@ -21,8 +21,7 @@
           @value-change="(new_val) => changeConfig(key, new_val)" />
       </div>
       <!-- 为范围选择滤镜模块单独开设 list + start_time + end_time + add rect  -->
-      <div v-for="item, index in active_config_ranges" class=" flex flex-col gap-2 min-w-60"
-        @click="seek_range_start(item['range'][0])">
+      <div v-for="item, index in active_config_ranges" class=" flex flex-col gap-2 min-w-60">
         <!-- a range for "start" and "end" key in -->
         <Panel class="mb-2" :header="'范围' + index.toString() + ' 持续时间: ' + (item['range'][0]).toFixed(2) + '~' + (item['range'][1]).toFixed(2)">
           <div class="flex flex-row items-center justify-between gap-2">
@@ -66,7 +65,14 @@ function changeConfig(key: string, new_val: number | number[]) {
 const changeRangeListConfig = (range_list_index: number, new_range: number[]) => {
   // if new_range[1] < new_range[0], swap them
   if (new_range[1] < new_range[0]) new_range.reverse()
+  // find which value is changed, seek video to it.
   const new_range_list = active_config_ranges.value
+  const old_range = new_range_list[range_list_index]['range']
+  if(new_range[0] != old_range[0]){
+    seek_range_start(new_range[0])
+  }else{
+    seek_range_start(new_range[1])
+  }
   new_range_list[range_list_index]['range'] = new_range
   filterStore.updateActiveConfig({ "range_list": new_range_list })
 }
@@ -126,10 +132,10 @@ function getSliderProps(key: string): { min: number; max: number; step: number }
 const editorStore = useEditorStore();
 const { new_seek_frame, edit_range, is_play } = storeToRefs(editorStore);
 //  adjust the video time to the start of the range!!
+
 function seek_range_start(start_time: number) {
   // also pause the video when seeking
   is_play.value = false
-
   new_seek_frame.value = start_time
 }
 

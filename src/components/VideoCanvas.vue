@@ -236,7 +236,9 @@ watch(() => props.videoUrl, (newUrl) => {
 
 // 监听 is_exporting 变化，开始导出视频
 watch(is_exporting, async (is_export_cur) => {
+  // console.log("start exporting, ", is_export_cur)
   if (!is_export_cur) {
+    console.log("already finish export!")
     return;
   }
   const ctx = (<OffscreenCanvas>exportCanvas).getContext('2d', { willReadFrequently: true });
@@ -271,6 +273,7 @@ watch(is_exporting, async (is_export_cur) => {
         })
       return;
     }
+    // console.log("now exporting ", video.currentTime)
     // renew progress
     export_progress.value = Math.floor((video.currentTime / video.duration) * 100);
     ctx.drawImage(video, 0, 0, vw, vh);
