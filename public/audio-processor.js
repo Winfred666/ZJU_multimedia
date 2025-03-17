@@ -1,4 +1,5 @@
 class AudioProcessor extends AudioWorkletProcessor {
+  static Channel_Downmix_Weight = [0.85, 0.85, 0.85, 0.3, 0.5, 0.5];
   constructor() {
     super();
     this.stopped = false;
@@ -23,11 +24,11 @@ class AudioProcessor extends AudioWorkletProcessor {
     const numberOfFrames = input[0].length;
     const mixed = new Float32Array(numberOfFrames);
     for (let i = 0; i < numberOfFrames; i++) {
-      let sum = 0;
-      for (let ch = 0; ch < input.length; ch++) {
-        sum += input[ch][i];
+      if(input.length === 1) {
+        mixed[i] = input[0][i];
+      } else for (let ch = 0; ch < input.length; ch++) {
+        mixed[i] += input[ch][i] * (AudioProcessor.Channel_Downmix_Weight[ch] || 1.0/input.length);
       }
-      mixed[i] = sum / input.length;
     }
 
     // Send the audio data to the main thread

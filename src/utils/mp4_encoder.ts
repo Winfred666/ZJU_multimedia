@@ -35,7 +35,12 @@ export const initVideoEncoder = (
   };
 
   // only when we have audio track
-  if (audioSettings) {
+  if (
+    audioSettings &&
+    window.AudioWorkletNode &&
+    "AudioEncoder" in window &&
+    window.isSecureContext
+  ) {
     muxerSettings = Object.assign(muxerSettings, {
       audio: {
         codec: "aac",
@@ -63,16 +68,29 @@ export const initVideoEncoder = (
 };
 
 let encoderNode: AudioWorkletNode;
-
+let mediaElementSource: MediaElementAudioSourceNode;
+let audioCtx: AudioContext;
 export const initAndEncodeAudio = async (
   video: HTMLVideoElement,
   muxer: any
 ) => {
+  // safari/firefox does not support audio encoder, need checking whether exists
+  if (!window.AudioWorkletNode) {
+    console.warn("AudioWorkletNode not supported, skip audio encoding.");
+    return null;
+  }
+  if (!("AudioEncoder" in window) || !window.isSecureContext) {
+    console.warn(
+      `AudioEncoder is supported in this browser! Current secure status: ${window.isSecureContext}`
+    );
+    return null;
+  }
   // check audiotrack of video and get sample rate
   const audioSettings = (video as any)
     .captureStream()
     ?.getAudioTracks()[0]
     ?.getSettings();
+
   if (!audioSettings) {
     console.warn("No audio track found in video, skip audio encoding.");
     return null;
@@ -91,10 +109,13 @@ export const initAndEncodeAudio = async (
     bitrate: 128_000,
   });
 
-  const audioCtx = new AudioContext();
-  const source = audioCtx.createMediaElementSource(video);
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (!mediaElementSource)
+    mediaElementSource = audioCtx.createMediaElementSource(video);
   // Load the worklet module.
-  await audioCtx.audioWorklet.addModule(`${process.env.BASE_URL || '/'}audio-processor.js`);
+  await audioCtx.audioWorklet.addModule(
+    `${process.env.BASE_URL || "/"}audio-processor.js`
+  );
 
   // Create the AudioWorkletNode using your custom processor.
   encoderNode = new AudioWorkletNode(audioCtx, "audio-processor");
@@ -102,7 +123,7 @@ export const initAndEncodeAudio = async (
   encoderNode.port.postMessage({ numberOfChannels });
 
   // Connect your audio source to the encoder node and then to the destination.
-  source.connect(encoderNode);
+  mediaElementSource.connect(encoderNode);
   encoderNode.connect(audioCtx.destination);
 
   let encode_curtime = 0;
@@ -128,8 +149,7 @@ export const initAndEncodeAudio = async (
       console.warn(
         `Audio ${encode_curtime} in video is longer than video ${video.duration}, stop encoding.`
       );
-      encoderNode.port.postMessage({ command: "stop" });
-      encoderNode.disconnect();
+      exitAudioEncodeSafe();
       return;
     }
     // Encode the audio block.
@@ -156,6 +176,13 @@ export const renderCanvas2FrameEncode = (
   frame.close();
 };
 
+const exitAudioEncodeSafe = () => {
+  if (encoderNode) {
+    encoderNode.port.postMessage({ command: "stop" });
+    encoderNode.disconnect();
+  }
+};
+
 export const downloadVideo = async (
   muxer: any,
   video_encoder: VideoEncoder,
@@ -163,10 +190,8 @@ export const downloadVideo = async (
   video_name: string
 ) => {
   // Forces all pending encodes to complete
-  if (encoderNode) {
-    encoderNode.port.postMessage({ command: "stop" });
-    encoderNode.disconnect();
-  }
+  exitAudioEncodeSafe();
+
   if (audio_encoder && audio_encoder.state === "configured")
     await audio_encoder.flush();
   await video_encoder.flush();

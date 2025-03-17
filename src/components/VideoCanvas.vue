@@ -1,4 +1,5 @@
 <template>
+  <Toast />
   <div class=" relative w-full h-full">
     <canvas ref="videoCanvas"></canvas>
     <video ref="videoElement" class="hidden"></video>
@@ -23,6 +24,12 @@ import { registerGLConvProcessor } from '@/utils/apply_filters_webgl';
 import { FPS_DEFUALT } from '@/utils/default_config';
 import { initVideoEncoder, renderCanvas2FrameEncode, downloadVideo, initAndEncodeAudio } from '@/utils/mp4_encoder';
 import { initZoneEditor, renderZone } from '@/utils/zone_editor';
+
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+
+const toast_primevue = useToast();
+
 
 
 const editor = useEditorStore();
@@ -240,88 +247,107 @@ watch(() => props.videoUrl, (newUrl) => {
   }
 });
 
+
+
+const error_handler = (when: string, e: any) => {
+  console.error(`Error when ${when}: `, e);
+  is_exporting.value = false;
+  if (videoElement.value)
+    videoElement.value.muted = false;
+  toast_primevue.add({ severity: 'error', summary: `${when}失败`, detail: e.toString(), life: 5000 });
+}
+
 // 监听 is_exporting 变化，开始导出视频
 watch(is_exporting, async (is_export_cur) => {
-  console.log("start exporting, ", is_export_cur)
   if (!is_export_cur) {
     console.log("already finish export!")
     return;
   }
-  const ctx = (<OffscreenCanvas>exportCanvas).getContext('2d', { willReadFrequently: true });
-  const canvas_gl = (<OffscreenCanvas>webglCanvas).getContext('webgl');
-  const video = videoElement.value;
-  if (!ctx || !video || !canvas_gl) {
-    is_exporting.value = false;
-    throw new Error("Video element or canvas context is not ready!!!")
-  }
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  // firstly set gl canvas size to video size also (remember to recover it after export)
-  registerGLConvProcessor(canvas_gl, vw, vh)
-  // then init muxer and encoder
-  const { encoder, muxer } = initVideoEncoder(video, vw, vh);
-  let frameNumber = 0;
 
-  const FRAME_INTERVAL_DEFAULT = 1.0 / FPS_DEFUALT;
-  const scale_factor = video.videoWidth / videoCanvas.value!.width;
-  console.log(scale_factor);
-  const export_single_frame = () => {
-    if (video.currentTime >= video.duration) { // finish exporting, end of video.
-      console.log("Finish exporting video, now export audio!!!")
-      initAndEncodeAudio(video, muxer).then((audio_encoder) => {
-        video.muted = false;
-
-        const downloadVideo_wrapper = () => {
-          downloadVideo(muxer, encoder, audio_encoder, "output.mp4")
-          .catch((e) => {
-            console.error("Error when download video: ", e);
-          }).finally(() => {
-            const display_cvs = <HTMLCanvasElement>(videoCanvas.value);
-            registerGLConvProcessor(canvas_gl, display_cvs.width, display_cvs.height)
-            is_exporting.value = false;
-          });
-        }
-
-        if (!audio_encoder) {
-          // just start download video
-          downloadVideo_wrapper();
-          return;
-        }
-
-        video.volume = 1.0; // full volume export.
-        video.currentTime = 0;
-        video.play()
-        const video_end_listener = () => {
-          video.removeEventListener('ended', video_end_listener);
-          console.log("Audio encoded ended, now download video!!!")
-          downloadVideo_wrapper();
-        }
-        video.addEventListener('ended', video_end_listener);
-      })
-      return;
+  try {
+    const ctx = (<OffscreenCanvas>exportCanvas).getContext('2d', { willReadFrequently: true });
+    const canvas_gl = (<OffscreenCanvas>webglCanvas).getContext('webgl');
+    const video = videoElement.value;
+    if (!ctx || !video || !canvas_gl) {
+      is_exporting.value = false;
+      throw new Error("Video element or canvas context is not ready!!!")
     }
-    // console.log("export_progress: ", video.currentTime)
-    // renew progress
-    export_progress.value = Math.floor((video.currentTime / video.duration) * 100);
-    ctx.drawImage(video, 0, 0, vw, vh);
-    let imgData = ctx.getImageData(0, 0, vw, vh);
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    // firstly set gl canvas size to video size also (remember to recover it after export)
+    registerGLConvProcessor(canvas_gl, vw, vh)
+    // then init muxer and encoder
+    const { encoder, muxer } = initVideoEncoder(video, vw, vh);
+    let frameNumber = 0;
 
-    apply_filter(imgData, video.currentTime, scale_factor);
+    const FRAME_INTERVAL_DEFAULT = 1.0 / FPS_DEFUALT;
+    const scale_factor = video.videoWidth / videoCanvas.value!.width;
 
-    video.currentTime += FRAME_INTERVAL_DEFAULT;
-    ctx.putImageData(imgData, 0, 0);
-    // use web-codec to encode the frame to video
-    renderCanvas2FrameEncode(<OffscreenCanvas>exportCanvas, encoder, frameNumber, FPS_DEFUALT);
-    console.log("render canvas2frame done!")
-    frameNumber += 1;
+    // console.log(scale_factor);
+
+    const export_single_frame = () => {
+      if (video.currentTime >= video.duration) { // finish exporting, end of video.
+        console.log("Finish exporting video, now export audio!!!")
+        initAndEncodeAudio(video, muxer).then((audio_encoder) => {
+          video.muted = false;
+
+          const downloadVideo_wrapper = () => {
+            downloadVideo(muxer, encoder, audio_encoder, "output.mp4")
+              .catch((e) => {
+                error_handler("打包视频", e);
+              }).finally(() => {
+                const display_cvs = <HTMLCanvasElement>(videoCanvas.value);
+                registerGLConvProcessor(canvas_gl, display_cvs.width, display_cvs.height)
+                is_exporting.value = false;
+              });
+          }
+
+          if (!audio_encoder) {
+            // just start download video
+            downloadVideo_wrapper();
+            return;
+          }
+
+          video.volume = 1.0; // full volume export.
+          video.currentTime = 0;
+          video.play()
+          const video_end_listener = () => {
+            video.removeEventListener('ended', video_end_listener);
+            console.log("Audio encoded ended, now download video!!!")
+            downloadVideo_wrapper();
+          }
+          video.addEventListener('ended', video_end_listener);
+        }).catch((e) => {
+          error_handler("导出音频", e);
+        });
+        return;
+      }
+      // console.log("export_progress: ", video.currentTime)
+      // renew progress
+      export_progress.value = Math.floor((video.currentTime / video.duration) * 100);
+      ctx.drawImage(video, 0, 0, vw, vh);
+      let imgData = ctx.getImageData(0, 0, vw, vh);
+
+      apply_filter(imgData, video.currentTime, scale_factor);
+
+      video.currentTime += FRAME_INTERVAL_DEFAULT;
+      ctx.putImageData(imgData, 0, 0);
+      // use web-codec to encode the frame to video
+      renderCanvas2FrameEncode(<OffscreenCanvas>exportCanvas, encoder, frameNumber, FPS_DEFUALT);
+      console.log("render canvas2frame done!")
+      frameNumber += 1;
+      video.requestVideoFrameCallback(export_single_frame);
+    }
+
+    video.loop = false;
+    video.muted = true; // just play video without sound
     video.requestVideoFrameCallback(export_single_frame);
-  }
+    video.currentTime = 0; // set to the beginning, and request each frame.
+    video.play() // to get every frame, must set to play.
 
-  video.loop = false;
-  video.muted = true; // just play video without sound
-  video.requestVideoFrameCallback(export_single_frame);
-  video.currentTime = 0; // set to the beginning, and request each frame.
-  video.play() // to get every frame, must set to play.
+  } catch (e: any) {
+    error_handler("导出视频", e);
+  }
 });
 
 </script>

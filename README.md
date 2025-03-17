@@ -13,15 +13,15 @@ Done list:
 
 - 基于 mp4-muxer 的 mp4 导出，默认 bitrate 为高清， fps=30。 [mp4_encoder](src/utils/mp4_encoder.ts) 
 
-- 基于 fabric.js 的矩形蒙版编辑 [zone_editor](src/utils/zone_editor.ts)
+- 基于 fabric.js 的矩形蒙版编辑，不可旋转 [zone_editor](src/utils/zone_editor.ts)
 
 - 支持单轨单声道声音导出，多声道会 downmix 到单声道 [mp4_encoder](src/utils/mp4_encoder.ts)
 
 TODO list:
 
-- 更多的滤镜蒙版，如圆形甚至画笔
+- 更多的滤镜蒙版，形状和变换更自由，如圆形甚至画笔
 
-- 滤镜蒙版 tween 补间动画，需要一个动画系统，比较困难 
+- 滤镜蒙版加入 tween 补间动画，需要一个动画系统，比较困难 
 
 - 统一使用 webGL shader 编写滤镜
 
