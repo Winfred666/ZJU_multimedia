@@ -23,6 +23,14 @@
       <Select id="speedDropdown" v-model="play_speed" :options="speedOptions" optionLabel="label" optionValue="value"
         placeholder="Select Speed" />
     </div>
+    <!-- Volume Slider -->
+    <div @mouseenter="()=>enter_volume_setting=true" @mouseleave="()=>enter_volume_setting=false"
+      class=" relative flex flex-col items-center">
+      <i class="pi pi-volume-up py-2"></i>
+      <div v-show="enter_volume_setting" class="absolute h-28 px-6 py-2 bg-black/40 rounded-sm -top-28">
+        <Slider class="relative left-1/2" v-model="volume" orientation="vertical" :min="0" :max="1" :step="0.01"/>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -34,13 +42,15 @@ import Select from 'primevue/select';
 
 import { useEditorStore } from '@/stores/video';
 import { storeToRefs } from 'pinia';
-
+import {ref} from 'vue';
 
 const editorStore = useEditorStore();
 
-const { is_play, edit_range, is_loop, play_speed, new_seek_frame,cur_time } = storeToRefs(editorStore);
+const { is_play, edit_range, is_loop, play_speed, new_seek_frame,cur_time, volume} = storeToRefs(editorStore);
 // Reactive state for video playback
 // Example: set videoDuration to 300 seconds (5 minutes) or set it dynamically from your video element
+
+const enter_volume_setting = ref(false);
 
 // Toggle play/pause state
 const togglePlay = () => {
@@ -81,6 +91,7 @@ const speedOptions = [
   { label: '1x', value: 1 },
   { label: '2x', value: 2 }
 ];
+
 
 
 </script>

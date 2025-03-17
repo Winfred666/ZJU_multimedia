@@ -13,8 +13,16 @@ const downloadBlob = (blob: Blob, blob_name: string) => {
   window.URL.revokeObjectURL(url);
 };
 
-export const initVideoEncoder = (width: number, height: number) => {
-  let muxer = new Mp4Muxer.Muxer({
+export const initVideoEncoder = (
+  video: HTMLVideoElement,
+  width: number,
+  height: number
+) => {
+  const audioSettings = (video as any)
+    .captureStream()
+    ?.getAudioTracks()[0]
+    ?.getSettings();
+  let muxerSettings = {
     target: new Mp4Muxer.ArrayBufferTarget(),
     video: {
       // use default H.264 codec
@@ -24,7 +32,19 @@ export const initVideoEncoder = (width: number, height: number) => {
     },
     // always set when use array buffer target
     fastStart: "in-memory",
-  });
+  };
+
+  // only when we have audio track
+  if (audioSettings) {
+    muxerSettings = Object.assign(muxerSettings, {
+      audio: {
+        codec: "aac",
+        sampleRate: audioSettings?.sampleRate ?? 48_000,
+        numberOfChannels: 1, // DOWNMIX to mono !!!
+      },
+    });
+  }
+  let muxer = new Mp4Muxer.Muxer(muxerSettings as any);
 
   let encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -42,6 +62,82 @@ export const initVideoEncoder = (width: number, height: number) => {
   return { encoder, muxer };
 };
 
+let encoderNode: AudioWorkletNode;
+
+export const initAndEncodeAudio = async (
+  video: HTMLVideoElement,
+  muxer: any
+) => {
+  // check audiotrack of video and get sample rate
+  const audioSettings = (video as any)
+    .captureStream()
+    ?.getAudioTracks()[0]
+    ?.getSettings();
+  if (!audioSettings) {
+    console.warn("No audio track found in video, skip audio encoding.");
+    return null;
+  }
+  const audio_encoder = new AudioEncoder({
+    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+    error: (error) => console.error(error),
+  });
+
+  const numberOfChannels = 1; // DOWNMIX to mono !!!
+  console.log("number of sound channels:", numberOfChannels);
+  audio_encoder.configure({
+    codec: "mp4a.40.2",
+    sampleRate: audioSettings.sampleRate ?? 48_000,
+    numberOfChannels,
+    bitrate: 128_000,
+  });
+
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaElementSource(video);
+  // Load the worklet module.
+  await audioCtx.audioWorklet.addModule("/audio-processor.js");
+
+  // Create the AudioWorkletNode using your custom processor.
+  encoderNode = new AudioWorkletNode(audioCtx, "audio-processor");
+
+  encoderNode.port.postMessage({ numberOfChannels });
+
+  // Connect your audio source to the encoder node and then to the destination.
+  source.connect(encoderNode);
+  encoderNode.connect(audioCtx.destination);
+
+  let encode_curtime = 0;
+  // Listen for messages (audio chunks) from the worklet.
+  encoderNode.port.onmessage = (event) => {
+    const { channelData, numberOfFrames } = event.data;
+    const sampleRate = audioSettings.sampleRate ?? 48_000;
+    // Here sampleRate is 48_000 numberOfFrames (128) means that it only finish 128/48_000 second
+    // times FPS is the frame number.
+    const timestamp = encode_curtime * 1e6;
+    // Create an AudioData object for encoding.
+    const audioData = new AudioData({
+      data: new Float32Array(channelData),
+      format: "f32",
+      numberOfChannels,
+      numberOfFrames,
+      sampleRate,
+      timestamp, // in microseconds
+    });
+    encode_curtime += numberOfFrames / sampleRate;
+    if (encode_curtime > video.duration) {
+      // audio is longer than video
+      console.warn(
+        `Audio ${encode_curtime} in video is longer than video ${video.duration}, stop encoding.`
+      );
+      encoderNode.port.postMessage({ command: "stop" });
+      encoderNode.disconnect();
+      return;
+    }
+    // Encode the audio block.
+    audio_encoder.encode(audioData);
+    audioData.close();
+  };
+  return audio_encoder;
+};
 
 export const renderCanvas2FrameEncode = (
   canvas: OffscreenCanvas | HTMLCanvasElement,
@@ -61,16 +157,24 @@ export const renderCanvas2FrameEncode = (
 };
 
 export const downloadVideo = async (
-  muxer: Mp4Muxer.Muxer<Mp4Muxer.ArrayBufferTarget>,
-  encoder: VideoEncoder,
+  muxer: any,
+  video_encoder: VideoEncoder,
+  audio_encoder: AudioEncoder | null,
   video_name: string
 ) => {
   // Forces all pending encodes to complete
-  await encoder.flush();
+  if (encoderNode) {
+    encoderNode.port.postMessage({ command: "stop" });
+    encoderNode.disconnect();
+  }
+  if (audio_encoder && audio_encoder.state === "configured")
+    await audio_encoder.flush();
+  await video_encoder.flush();
+
   console.log("flushing encoder");
 
   muxer.finalize();
   let buffer = muxer.target.buffer;
-  
+
   downloadBlob(new Blob([buffer], { type: "video/mp4" }), video_name);
 };

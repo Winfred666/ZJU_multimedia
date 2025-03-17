@@ -21,13 +21,13 @@ import { storeToRefs } from 'pinia';
 import { apply_filter } from '@/utils/apply_filters_basic';
 import { registerGLConvProcessor } from '@/utils/apply_filters_webgl';
 import { FPS_DEFUALT } from '@/utils/default_config';
-import { initVideoEncoder, renderCanvas2FrameEncode, downloadVideo } from '@/utils/mp4_encoder';
+import { initVideoEncoder, renderCanvas2FrameEncode, downloadVideo, initAndEncodeAudio } from '@/utils/mp4_encoder';
 import { initZoneEditor, renderZone } from '@/utils/zone_editor';
 
 
 const editor = useEditorStore();
 
-const { edit_range, is_loop, is_mute, is_play, cur_time, play_speed, new_seek_frame } = storeToRefs(editor);
+const { edit_range, is_loop, volume, is_play, cur_time, play_speed, new_seek_frame } = storeToRefs(editor);
 
 const videoStore = useVideoStore();
 const { is_exporting, export_progress } = storeToRefs(videoStore);
@@ -54,16 +54,22 @@ let ctx: any = undefined;
 
 
 // watch is_play, is_loop, is_mute value and set videoElement value to them
-watch([is_play, is_loop, is_mute, play_speed], ([is_play, is_loop, is_mute, play_speed]) => {
+watch([is_play, is_loop, volume, play_speed], ([is_play, is_loop, volume, play_speed]) => {
   if (videoElement.value) {
-    videoElement.value.muted = is_mute;
     if (is_play) {
       videoElement.value.play();
     } else {
       videoElement.value.pause();
     }
-    videoElement.value.loop = is_loop;
-    videoElement.value.playbackRate = play_speed;
+    if (videoElement.value.volume !== volume) {
+      videoElement.value.volume = volume;
+    }
+    if (videoElement.value.loop !== is_loop) {
+      videoElement.value.loop = is_loop;
+    }
+    if (videoElement.value.playbackRate !== play_speed) {
+      videoElement.value.playbackRate = play_speed;
+    }
   }
 });
 
@@ -94,7 +100,7 @@ const drawVideoFrame = () => {
 
   // 0. UI canvas render (no block!)
   renderZone(currentTime);
-  
+
   // if (video.paused && cur_time.value === currentTime) {
   //   if (!temp_save_fame) {
   //     // 如果没有保存，保存当前画面
@@ -248,30 +254,50 @@ watch(is_exporting, async (is_export_cur) => {
     is_exporting.value = false;
     throw new Error("Video element or canvas context is not ready!!!")
   }
-  video.pause()
-  video.currentTime = 0; // set to the beginning, and request each frame.
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   // firstly set gl canvas size to video size also (remember to recover it after export)
   registerGLConvProcessor(canvas_gl, vw, vh)
   // then init muxer and encoder
-  const { encoder, muxer } = initVideoEncoder(vw, vh);
+  const { encoder, muxer } = initVideoEncoder(video, vw, vh);
   let frameNumber = 0;
 
   const FRAME_INTERVAL_DEFAULT = 1.0 / FPS_DEFUALT;
-  const scale_factor = video.videoWidth/videoCanvas.value!.width;
+  const scale_factor = video.videoWidth / videoCanvas.value!.width;
   console.log(scale_factor);
   const export_single_frame = () => {
     if (video.currentTime >= video.duration - FRAME_INTERVAL_DEFAULT) { // finish exporting, end of video.
-      console.log("Finish exporting video!!!")
-      downloadVideo(muxer, encoder, "output.mp4")
-        .catch((e) => {
-          console.error("Error when download video: ", e);
-        }).finally(() => {
-          const display_cvs = <HTMLCanvasElement>(videoCanvas.value);
-          registerGLConvProcessor(canvas_gl, display_cvs.width, display_cvs.height)
-          is_exporting.value = false;
-        })
+
+      console.log("Finish exporting video, now export audio!!!")
+      initAndEncodeAudio(video, muxer).then((audio_encoder) => {
+        
+        video.muted = false;
+        const downloadVideo_wrapper = () => {
+          downloadVideo(muxer, encoder, audio_encoder, "output.mp4")
+          .catch((e) => {
+            console.error("Error when download video: ", e);
+          }).finally(() => {
+            const display_cvs = <HTMLCanvasElement>(videoCanvas.value);
+            registerGLConvProcessor(canvas_gl, display_cvs.width, display_cvs.height)
+            is_exporting.value = false;
+          });
+        }
+
+        if (!audio_encoder) {
+          // just start download video
+          downloadVideo_wrapper();
+          return;
+        }
+
+        video.volume = 1.0; // full volume export.
+        video.currentTime = 0;
+        const video_end_listener = () => {
+          video.removeEventListener('ended', video_end_listener);
+          console.log("Audio encoded ended, now download video!!!")
+          downloadVideo_wrapper();
+        }
+        video.addEventListener('ended', video_end_listener);
+      })
       return;
     }
     // console.log("export_progress: ", video.currentTime)
@@ -281,7 +307,7 @@ watch(is_exporting, async (is_export_cur) => {
     let imgData = ctx.getImageData(0, 0, vw, vh);
 
     apply_filter(imgData, video.currentTime, scale_factor);
-    
+
     video.currentTime += FRAME_INTERVAL_DEFAULT;
     ctx.putImageData(imgData, 0, 0);
     // use web-codec to encode the frame to video
@@ -290,7 +316,11 @@ watch(is_exporting, async (is_export_cur) => {
     frameNumber += 1;
     video.requestVideoFrameCallback(export_single_frame);
   }
+
+  video.loop = false;
+  video.muted = true; // just play video without sound
   video.requestVideoFrameCallback(export_single_frame);
+  video.currentTime = 0; // set to the beginning, and request each frame.
   video.play() // to get every frame, must set to play.
 });
 

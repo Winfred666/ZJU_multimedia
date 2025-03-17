@@ -42,7 +42,7 @@ export const useVideoStore = defineStore('video', () => {
 export const useEditorStore = defineStore('editor', () => {
   const edit_range = ref([0, 0])
   const is_loop = ref(false)
-  const is_mute = ref(false)
+  const volume = ref(0.5)
   const is_play = ref(false)
   const play_speed = ref(1)
   const cur_time = ref(0) // WARNING: cur_time is not controlled by user input, it is controlled by video player!!!
@@ -50,5 +50,5 @@ export const useEditorStore = defineStore('editor', () => {
   const cur_progress = computed(() => {
     return (cur_time.value - edit_range.value[0]) / (edit_range.value[1] - edit_range.value[0])
   })
-  return { edit_range, is_loop, is_mute, is_play, play_speed, cur_progress , cur_time,new_seek_frame }
+  return { edit_range, is_loop, volume, is_play, play_speed, cur_progress , cur_time,new_seek_frame }
 })

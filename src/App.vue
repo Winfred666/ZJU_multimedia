@@ -1,4 +1,3 @@
-
 <template>
   <BlockUI :blocked="is_exporting">
     <div class="flex flex-col items-center justify-start gap-10">
@@ -38,14 +37,13 @@
       </div>
     </div>
   </BlockUI>
-  <div v-show="is_exporting" class=" top-0 left-0 absolute flex justify-center items-center w-screen h-screen" style="z-index: 1102;">
+  <div v-show="is_exporting" class=" top-0 left-0 absolute flex flex-col gap-2  justify-center items-center w-screen h-screen" style="z-index: 1102;">
     <ProgressBar class=" w-4/5 h-auto" :value="export_progress"></ProgressBar>
-    <Toast position="top-center" />
+    <div> 全力导出.mp4 文件中... 切出标签页可能提前中断，safari/firefox 不支持声音导出 </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import Toast from 'primevue/toast';
 import Button from "primevue/button";
 import Fieldset from 'primevue/fieldset';
 import Divider from 'primevue/divider';
@@ -70,8 +68,5 @@ const { video_url, editor_mode, anti_editor_mode, is_exporting, export_progress 
 
 const protect_mask = () => (video_url.value === '' ? ' pointer-events-none' : '')
 const protect_mask_parent = () => (video_url.value === '' ? ' cursor-not-allowed' : '')
-
-
-
 
 </script>

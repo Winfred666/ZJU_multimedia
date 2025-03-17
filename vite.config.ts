@@ -11,6 +11,7 @@ export default defineConfig(({mode})=>{
     vue(),
     tailwindcss(),
     ],
+  assetsInclude: ['/**/*.js'],
   resolve: {
     alias: {
       "@": "/src", // 确保 "@" 指向项目根目录下的 "src" 文件夹
