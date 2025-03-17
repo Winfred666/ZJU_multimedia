@@ -266,12 +266,11 @@ watch(is_exporting, async (is_export_cur) => {
   const scale_factor = video.videoWidth / videoCanvas.value!.width;
   console.log(scale_factor);
   const export_single_frame = () => {
-    if (video.currentTime >= video.duration - FRAME_INTERVAL_DEFAULT) { // finish exporting, end of video.
-
+    if (video.currentTime >= video.duration) { // finish exporting, end of video.
       console.log("Finish exporting video, now export audio!!!")
       initAndEncodeAudio(video, muxer).then((audio_encoder) => {
-        
         video.muted = false;
+
         const downloadVideo_wrapper = () => {
           downloadVideo(muxer, encoder, audio_encoder, "output.mp4")
           .catch((e) => {
@@ -291,6 +290,7 @@ watch(is_exporting, async (is_export_cur) => {
 
         video.volume = 1.0; // full volume export.
         video.currentTime = 0;
+        video.play()
         const video_end_listener = () => {
           video.removeEventListener('ended', video_end_listener);
           console.log("Audio encoded ended, now download video!!!")

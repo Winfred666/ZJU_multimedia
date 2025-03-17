@@ -94,7 +94,7 @@ export const initAndEncodeAudio = async (
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaElementSource(video);
   // Load the worklet module.
-  await audioCtx.audioWorklet.addModule("/audio-processor.js");
+  await audioCtx.audioWorklet.addModule(`${process.env.BASE_URL || '/'}audio-processor.js`);
 
   // Create the AudioWorkletNode using your custom processor.
   encoderNode = new AudioWorkletNode(audioCtx, "audio-processor");
