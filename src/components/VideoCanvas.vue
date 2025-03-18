@@ -27,6 +27,7 @@ import { initZoneEditor, renderZone } from '@/utils/zone_editor';
 
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
+import { registerGlitchProcessor } from '@/utils/apply_filters_temporal';
 
 const toast_primevue = useToast();
 
@@ -54,6 +55,7 @@ const videoElement = ref<HTMLVideoElement>();
 const uiCanvas = ref<HTMLCanvasElement>();
 
 let webglCanvas: OffscreenCanvas;
+let glitchCanvas: OffscreenCanvas;
 let exportCanvas: OffscreenCanvas;
 
 // 定义视频上下文
@@ -181,10 +183,10 @@ const handleMetadataLoaded = () => {
 
   // now we can set offscreen webgl canvas size
   webglCanvas = new OffscreenCanvas(canvas.width, canvas.height);
+  glitchCanvas = new OffscreenCanvas(canvas.width, canvas.height);
   exportCanvas = new OffscreenCanvas(video.videoWidth, video.videoHeight);
 
   const canvas_gl = webglCanvas;
-
   if (!canvas_gl) {
     throw new Error("webglCanvas is not ready!!!")
   }
@@ -192,8 +194,10 @@ const handleMetadataLoaded = () => {
   if (!gl) {
     throw new Error("webgl is not supported in browser!!!")
   }
+
   // 注册 webgl 处理器
   registerGLConvProcessor(gl, canvas.width, canvas.height)
+  registerGlitchProcessor(glitchCanvas.getContext('webgl')!, canvas.width, canvas.height)
 };
 
 // 在组件挂载时初始化视频元素和事件监听器
@@ -266,9 +270,12 @@ watch(is_exporting, async (is_export_cur) => {
 
   try {
     const ctx = (<OffscreenCanvas>exportCanvas).getContext('2d', { willReadFrequently: true });
+    
     const canvas_gl = (<OffscreenCanvas>webglCanvas).getContext('webgl');
+    const canvas_glitch = (<OffscreenCanvas>glitchCanvas).getContext('webgl');
+    
     const video = videoElement.value;
-    if (!ctx || !video || !canvas_gl) {
+    if (!ctx || !video || !canvas_gl || !canvas_glitch) {
       is_exporting.value = false;
       throw new Error("Video element or canvas context is not ready!!!")
     }
@@ -276,6 +283,7 @@ watch(is_exporting, async (is_export_cur) => {
     const vh = video.videoHeight;
     // firstly set gl canvas size to video size also (remember to recover it after export)
     registerGLConvProcessor(canvas_gl, vw, vh)
+    registerGlitchProcessor(canvas_glitch, vw, vh)
     // then init muxer and encoder
     const { encoder, muxer } = initVideoEncoder(video, vw, vh);
     let frameNumber = 0;
@@ -298,6 +306,7 @@ watch(is_exporting, async (is_export_cur) => {
               }).finally(() => {
                 const display_cvs = <HTMLCanvasElement>(videoCanvas.value);
                 registerGLConvProcessor(canvas_gl, display_cvs.width, display_cvs.height)
+                registerGlitchProcessor(canvas_glitch, display_cvs.width, display_cvs.height)
                 is_exporting.value = false;
               });
           }

@@ -21,7 +21,7 @@ function compileShader(
 }
 
 // Class encapsulating the GL processing for convolution.
-class GLProcessor {
+export class GLProcessor {
   protected gl: WebGLRenderingContext;
   protected program: WebGLProgram | null = null;
   protected positionBuffer: WebGLBuffer | null = null;
@@ -89,6 +89,37 @@ class GLProcessor {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
+  protected sendUniformSafe(key:string, val:any, is_integer:boolean=false){
+    const gl = this.gl;
+    if (!this.program) {
+      throw new Error("GL program is not set");
+    }
+    const location = gl.getUniformLocation(this.program, key);
+    if (location) {
+      // if is integer, cannot decided by typeof val.
+      if(is_integer){
+        gl.uniform1i(location, val);
+      }else if(typeof val === 'number'){
+        gl.uniform1f(location, val);
+      }// else if is array
+      else if(val instanceof Array){
+        if(val.length === 2){
+          gl.uniform2f(location, val[0], val[1]);
+        }else if(val.length === 4){
+          gl.uniform4f(location, val[0],val[1], val[2],val[3]);
+        }else{ // much longer.
+          gl.uniform1fv(location, val);
+        }
+      } // if boolean
+      else if(typeof val === 'boolean'){
+        gl.uniform1i(location, val ? 1 : 0);
+      }
+
+    } else {
+      throw new Error(`${key} not found in the shader program!!`);
+    }
+  }
+
   // Set (or swap) the GL program from shader sources.
   // Note: vertexShaderSource and fragmentShaderSource are provided externally
   // WARNING: do not call it frequently because compiling shaders is expensive.
@@ -129,10 +160,8 @@ class GLProcessor {
     gl.enableVertexAttribArray(positionLocation); // prepare again for the new program
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
     // Set uniform for texture size if expected (e.g., u_textureSize).
-    const textureSizeLocation = gl.getUniformLocation(program, "u_textureSize");
-    if (textureSizeLocation) {
-      gl.uniform2f(textureSizeLocation, this.width, this.height);
-    }
+    
+    this.sendUniformSafe("u_textureSize", [this.width, this.height])
     // Additional uniforms (like convolution kernel) should be set separately(more adjustable)
   }
 
@@ -279,26 +308,8 @@ void main(){
     // console.log("reset kernel of WebGL!!")
     this._kernel = kernel;
     this._kernelSize = kernelSize;
-    if (this.program) {
-      const kernelLocation = this.gl.getUniformLocation(
-        this.program,
-        "u_kernel[0]"
-      );
-      const kernelSizeLocation = this.gl.getUniformLocation(
-        this.program,
-        "u_kernelSize"
-      );
-      if (kernelLocation) {
-        this.gl.uniform1fv(kernelLocation, kernel);
-      } else {
-        throw new Error("u_kernel[0] not found in the shader program!!");
-      }
-      if (kernelSizeLocation) {
-        this.gl.uniform1i(kernelSizeLocation, kernelSize);
-      } else {
-        throw new Error("u_kernelSize not found in the shader program!!");
-      }
-    }
+    this.sendUniformSafe("u_kernel[0]",kernel)
+    this.sendUniformSafe("u_kernelSize",kernelSize, true)
   }
 
   get kernel(): number[] {

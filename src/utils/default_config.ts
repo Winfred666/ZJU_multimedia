@@ -9,7 +9,8 @@ export enum AllFilters {
     LAPLACIAN = "拉普拉斯边缘增强",
     EDGE = "边缘检测",
     RECTRANGE = "范围:矩形",
-    GLOBALRANGE = "范围:恢复全局"
+    GLOBALRANGE = "范围:恢复全局",
+    GLITCH = "故障特效"
   }
 
 // a simple way to create config for different filters
@@ -20,7 +21,6 @@ const MosaikConfig_Default = {
     blockSizeX: 10,
     blockSizeY: 10
 }
-
 
 const HueSatLightConfig_Default = {
     hue: +0,
@@ -41,13 +41,29 @@ const RangeConfig_Default = {
     range_list: []
 }
 
+const EdgeConfig_Default = {
+    threshold: 0.1
+}
+
+const GlitchConfig_Default = {
+    colorShiftOn: true,
+    colorShiftIntensity: 0.5,
+    distortionOn: true,
+    distortionIntensity: 0.5,
+    scanlineOn: true,
+    scanlineHeight: 0.02,
+    scanlineSpeed: 0.1,
+}
+
 export type MosaikConfig=(typeof MosaikConfig_Default)
 export type HueSatLightConfig=(typeof HueSatLightConfig_Default)
 export type GaussianConfig=(typeof GaussianConfig_Default)
 export type LaplacianConfig=(typeof LaplacianConfig_Default)
 export type RangeConfig=(typeof RangeConfig_Default)
+export type EdgeConfig=(typeof EdgeConfig_Default)
+export type GlitchConfig=(typeof GlitchConfig_Default)
 
-export type AnyFilterConfig = MosaikConfig|HueSatLightConfig|GaussianConfig|LaplacianConfig|RangeConfig|undefined
+export type AnyFilterConfig = MosaikConfig|HueSatLightConfig|GaussianConfig|LaplacianConfig|RangeConfig|EdgeConfig|GlitchConfig|undefined
 
 export const FilterConfig_Dict:Record<AllFilters,AnyFilterConfig> = {
     [AllFilters.MOSAIK]: MosaikConfig_Default,
@@ -55,8 +71,9 @@ export const FilterConfig_Dict:Record<AllFilters,AnyFilterConfig> = {
     [AllFilters.HUESATLIGHT]: HueSatLightConfig_Default,
     [AllFilters.GAUSSIAN]: GaussianConfig_Default,
     [AllFilters.LAPLACIAN]: LaplacianConfig_Default,
-    [AllFilters.EDGE]: undefined,
+    [AllFilters.EDGE]: EdgeConfig_Default,
     [AllFilters.RECTRANGE]: RangeConfig_Default,
-    [AllFilters.GLOBALRANGE]: undefined
+    [AllFilters.GLOBALRANGE]: undefined,
+    [AllFilters.GLITCH]: GlitchConfig_Default
 }
 

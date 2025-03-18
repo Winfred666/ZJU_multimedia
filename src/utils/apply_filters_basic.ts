@@ -5,6 +5,8 @@ import {
   HueSatLightConfig,
   GaussianConfig,
   LaplacianConfig,
+  EdgeConfig,
+  GlitchConfig,
 } from "@/utils/default_config";
 import {
   rgbToHsl,
@@ -15,6 +17,7 @@ import {
   mask_zone_rect,
 } from "./compute";
 import { apply_conv_filter } from "./apply_filters_webgl";
+import { apply_glitch_filter } from "./apply_filters_temporal";
 
 const apply_greyscale_filter = (data: any) => {
   for (let i = 0; i < data.length; i += 4) {
@@ -120,7 +123,11 @@ const apply_HueSatLight_filter = (
 
 let zonemask_context: boolean[] = [];
 
-export const apply_filter = (imgData: any, cur_time: number, scale_factor:number|undefined=undefined) => {
+export const apply_filter = (
+  imgData: any,
+  cur_time: number,
+  scale_factor: number | undefined = undefined
+) => {
   // each filter can only be applied within current zone_context,
   // pixels outside the zone_context should not be changed!!!!
   zonemask_context = Array(imgData.width * imgData.height).fill(true);
@@ -131,36 +138,35 @@ export const apply_filter = (imgData: any, cur_time: number, scale_factor:number
   filterStore.filter_list.forEach((filter) => {
     // first copy one part of the data so that we can restore it later
     const data_copy = new Uint8ClampedArray(data);
-    
+
     // special all false mask, when no filter is active
     // these are filters that can be applied to the zone
     switch (filter.value) {
       case AllFilters.RECTRANGE:
         zonemask_context = Array(imgData.width * imgData.height).fill(false);
-        if (!filter.config || ! (filter.config as any).range_list) break;
-          const range_list = (filter.config as any).range_list;
-          range_list.forEach((range_zone: any) => {
-            if (
-              cur_time >= range_zone.range[0] &&
-              cur_time <= range_zone.range[1]
-            ) {
-              // set true mask to the zone
-              mask_zone_rect(
-                zonemask_context,
-                width,
-                height,
-                (range_zone.zone as fabric.Rect).getBoundingRect(),
-                scale_factor
-              );
-            }
-          });
+        if (!filter.config || !(filter.config as any).range_list) break;
+        const range_list = (filter.config as any).range_list;
+        range_list.forEach((range_zone: any) => {
+          if (
+            cur_time >= range_zone.range[0] &&
+            cur_time <= range_zone.range[1]
+          ) {
+            // set true mask to the zone
+            mask_zone_rect(
+              zonemask_context,
+              width,
+              height,
+              (range_zone.zone as fabric.Rect).getBoundingRect(),
+              scale_factor
+            );
+          }
+        });
         break;
       case AllFilters.GLOBALRANGE:
         // just set the whole image to true
         zonemask_context = Array(imgData.width * imgData.height).fill(true);
         break;
     }
-
 
     // these are filters that can be applied to the image
     let has_image_filter = true;
@@ -169,10 +175,14 @@ export const apply_filter = (imgData: any, cur_time: number, scale_factor:number
       case AllFilters.MOSAIK:
         // need to adjust block size X and Y when ori_WH is provided
         let config_clone = filter.config as MosaikConfig;
-        if (scale_factor){
+        if (scale_factor) {
           config_clone = Object.assign({}, filter.config as MosaikConfig);
-          config_clone.blockSizeX = Math.floor(config_clone.blockSizeX * scale_factor);
-          config_clone.blockSizeY = Math.floor(config_clone.blockSizeY * scale_factor);
+          config_clone.blockSizeX = Math.floor(
+            config_clone.blockSizeX * scale_factor
+          );
+          config_clone.blockSizeY = Math.floor(
+            config_clone.blockSizeY * scale_factor
+          );
         }
         apply_mosaik_filter(data, width, height, config_clone);
         break;
@@ -184,7 +194,7 @@ export const apply_filter = (imgData: any, cur_time: number, scale_factor:number
         break;
       case AllFilters.GAUSSIAN:
         let { kernel_size, sigma } = filter.config as GaussianConfig;
-        if(scale_factor){
+        if (scale_factor) {
           // make sure kernel_size is odd and kernel_size is at least 3
           kernel_size = Math.max(3, Math.floor(kernel_size * scale_factor));
           kernel_size += kernel_size % 2 == 0 ? 1 : 0;
@@ -201,20 +211,16 @@ export const apply_filter = (imgData: any, cur_time: number, scale_factor:number
       case AllFilters.EDGE:
         let edge_kernel = laplacianKernel(3, true);
         apply_conv_filter(imgData, edge_kernel, 3);
-        // normalize imgData
-        let max = [0, 0, 0];
+        // trim the edge from [0,255] to [threshold,255]
+        const threshold = (filter.config as EdgeConfig).threshold * 255;
         for (let i = 0; i < data.length; i += 4) {
-          for (let u = 0; u < 3; u++) {
-            data[i + u] = Math.abs(data[i + u]);
-            if (data[i + u] > max[u]) max[u] = data[i + u];
-          }
+          data[i] = data[i] > threshold ? 255 : 0;
+          data[i + 1] = data[i + 1] > threshold ? 255 : 0;
+          data[i + 2] = data[i + 2] > threshold ? 255 : 0;
         }
-        max = max.map((i) => (i > 0 ? 255 / i : 1));
-        for (let i = 0; i < data.length; i += 4) {
-          for (let u = 0; u < 3; u++) {
-            data[i + u] *= max[u];
-          }
-        }
+        break;
+      case AllFilters.GLITCH:
+        apply_glitch_filter(imgData, cur_time, filter.config as GlitchConfig);
         break;
       default:
         has_image_filter = false;

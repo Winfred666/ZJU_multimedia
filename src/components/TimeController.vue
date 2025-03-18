@@ -9,8 +9,8 @@
     <!-- Progress Bar with Time Labels -->
     <div class="flex flex-row items-center justify-center gap-4 grow">
       <span class=" w-16">{{ formatTime(cur_time) }}</span>
-      <Slider v-model="cur_time" :min="edit_range[0]" :max="edit_range[1]" @change="onProgressChange"
-        class="w-full" :step="0.05"/>
+      <Slider :model-value="cur_time" :min="edit_range[0]" :max="edit_range[1]" @change="onProgressChange" class="w-full"
+        :step="0.05" />
       <span class="w-16 ">{{ formatTime(edit_range[1]) }}</span>
     </div>
 
@@ -24,11 +24,11 @@
         placeholder="Select Speed" />
     </div>
     <!-- Volume Slider -->
-    <div @mouseenter="()=>enter_volume_setting=true" @mouseleave="()=>enter_volume_setting=false"
-      class=" relative flex flex-col items-center">
+    <div @mouseenter="() => enter_volume_setting = true" class=" relative flex flex-col items-center">
       <i class="pi pi-volume-up py-2"></i>
-      <div v-show="enter_volume_setting" class="absolute h-28 px-6 py-2 bg-black/40 rounded-sm -top-28">
-        <Slider class="relative left-1/2" v-model="volume" orientation="vertical" :min="0" :max="1" :step="0.01"/>
+      <div :class="`absolute h-28 px-6 py-2 bg-black/40 rounded-sm -top-28 transition-opacity ${enter_volume_setting?' opacity-100': ' opacity-0 pointer-events-none'}`">
+        <Slider class="relative left-1/2" :model-value="volume" @change="onVolumeChange" orientation="vertical" :min="0"
+          :max="1" :step="0.01" />
       </div>
     </div>
   </div>
@@ -37,16 +37,16 @@
 <script setup lang="ts">
 import Button from 'primevue/button';
 import Slider from 'primevue/slider';
-import ToggleSwitch  from 'primevue/toggleSwitch';
+import ToggleSwitch from 'primevue/toggleSwitch';
 import Select from 'primevue/select';
 
 import { useEditorStore } from '@/stores/video';
 import { storeToRefs } from 'pinia';
-import {ref} from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 
 const editorStore = useEditorStore();
 
-const { is_play, edit_range, is_loop, play_speed, new_seek_frame,cur_time, volume} = storeToRefs(editorStore);
+const { is_play, edit_range, is_loop, play_speed, new_seek_frame, cur_time, volume } = storeToRefs(editorStore);
 // Reactive state for video playback
 // Example: set videoDuration to 300 seconds (5 minutes) or set it dynamically from your video element
 
@@ -55,24 +55,68 @@ const enter_volume_setting = ref(false);
 // Toggle play/pause state
 const togglePlay = () => {
   // if cur_progress is at the end, reset to start
-  if(cur_time.value == edit_range.value[1]) {
+  if (cur_time.value == edit_range.value[1]) {
     rollback();
   }
   is_play.value = !is_play.value;
 };
 
+const handleKeyPress = (event: KeyboardEvent) => {
+  switch (event.code) {
+    case "Space":
+      event.preventDefault(); // prevent scrolling
+      togglePlay();
+      break;
+    case "ArrowLeft":
+    case "KeyA":
+      onProgressChange(cur_time.value - 2);
+      break;
+    case "ArrowRight":
+    case "KeyD":
+      onProgressChange(cur_time.value + 2);
+      break;
+    case "ArrowUp":
+    case "KeyW":
+      onVolumeChange(volume.value + 0.05);
+      break;
+    case "ArrowDown":
+    case "KeyS":
+      onVolumeChange(volume.value - 0.05);
+      break;
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyPress);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyPress);
+});
+
 // Rollback to start (reset new_seek_frame)
 const rollback = () => {
-  if(new_seek_frame.value == 0) {
+  if (new_seek_frame.value == 0) {
     new_seek_frame.value = 0.01; // make sure it update.
-  }else {
+  } else {
     new_seek_frame.value = 0;
   }
 };
 
 // Handle slider change (if additional logic is needed)
 const onProgressChange = (value: number) => {
+  // protect from  out of range
+  value = Math.max(edit_range.value[0], Math.min(edit_range.value[1], value));
   new_seek_frame.value = value;
+};
+
+const onVolumeChange = (value: number) => {
+  // protect from  out of range
+  value = Math.max(0, Math.min(1, value));
+  volume.value = value;
+  enter_volume_setting.value = true;
+  // close volume setting after 3 seconds
+  setTimeout(() => enter_volume_setting.value = false, 3000);
 };
 
 // Format seconds into mm:ss:s's' string format

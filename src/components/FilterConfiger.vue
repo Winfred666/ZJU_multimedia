@@ -7,12 +7,19 @@
     <div v-else-if="!active_config" class=" justify-self-center">
       该滤镜没有可编辑的属性
     </div>
-    <div v-else>
-      <!-- 所有 number 类型的 config -->
-      <div v-for="(value, key) in active_config_number" :key="key" class="flex flex-col gap-2">
+    <!-- 所有 number 类型的 config -->
+    <!-- 对 bool 类型滤镜，添加开启/关闭 Switch -->
+    <div v-else v-for="(value, key) in active_config_numbool" :key="key" class="flex flex-col ">
+      <div v-if="(typeof value === 'boolean')" class=" w-40 flex justify-between items-center gap-2">
+        <!-- Label -->
+        <span class="w-20 text-sm font-medium capitalize">{{ key }}</span>
+        <!-- PrimeVue ToggleSwitch -->
+        <ToggleSwitch :model-value="value" @value-change="(new_val) => changeConfig(key, new_val)" />
+      </div>
+      <div v-else class=" flex flex-col gap-2">
         <div class=" flex justify-between items-center">
           <!-- Label -->
-          <span class="w-20 text-sm font-medium capitalize">{{ key }}</span>
+          <span class="w-fit text-sm font-medium capitalize">{{ key }}</span>
           <!-- Display the current value -->
           <span class="w-12 text-right">{{ value }}</span>
         </div>
@@ -20,26 +27,28 @@
         <Slider :model-value="value" v-bind="getSliderProps(key)"
           @value-change="(new_val) => changeConfig(key, new_val)" />
       </div>
-      <!-- 为范围选择滤镜模块单独开设 list + start_time + end_time + add rect  -->
-      <div v-for="item, index in active_config_ranges" class=" flex flex-col gap-2 min-w-60">
-        <!-- a range for "start" and "end" key in -->
-        <Panel class="mb-2" :header="'范围' + index.toString() + ' 持续时间: ' + (item['range'][0]).toFixed(2) + '~' + (item['range'][1]).toFixed(2)">
-          <div class="flex flex-row items-center justify-between gap-2">
-            <Slider range :model-value="item['range']" :min="edit_range[0]" :max="edit_range[1]" :step="0.01"
-              @value-change="(new_val) => changeRangeListConfig(index, <number[]>new_val)" class=" grow" />
-            <Button icon="pi pi-trash" size="small" @click="deleteRangeListConfig(index)"></Button>
-          </div>
-        </Panel>
-      </div>
-      <div class=" mt-2 w-full">
+    </div>
+    <!-- 为范围选择滤镜模块单独开设 list + start_time + end_time + add rect  -->
+    <div v-for="item, index in active_config_ranges" class=" flex flex-col gap-2 min-w-60">
+      <!-- a range for "start" and "end" key in -->
+      <Panel class="mb-2"
+        :header="'范围' + index.toString() + ' 持续时间: ' + (item['range'][0]).toFixed(2) + '~' + (item['range'][1]).toFixed(2)">
+        <div class="flex flex-row items-center justify-between gap-2">
+          <Slider range :model-value="item['range']" :min="edit_range[0]" :max="edit_range[1]" :step="0.01"
+            @value-change="(new_val) => changeRangeListConfig(index, <number[]>new_val)" class=" grow" />
+          <Button icon="pi pi-trash" size="small" @click="deleteRangeListConfig(index)"></Button>
+        </div>
+      </Panel>
+    </div>
+    <div class=" mt-2 w-full">
       <Button v-if="active_config && (active_config as any).range_list" fluid icon="pi pi-plus"
         @click="pushRangeListConfig()"> </button>
-      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
+import ToggleSwitch from 'primevue/toggleSwitch';
 import Slider from 'primevue/slider';
 import Panel from 'primevue/panel';
 import Button from 'primevue/button';
@@ -56,7 +65,7 @@ const filterStore = useFilterStore()
 
 const { has_active_filter, active_config, active_filtername } = storeToRefs(filterStore)
 
-function changeConfig(key: string, new_val: number | number[]) {
+function changeConfig(key: string, new_val: number | number[] | boolean) {
   filterStore.updateActiveConfig({ [key]: new_val })
 }
 
@@ -68,9 +77,9 @@ const changeRangeListConfig = (range_list_index: number, new_range: number[]) =>
   // find which value is changed, seek video to it.
   const new_range_list = active_config_ranges.value
   const old_range = new_range_list[range_list_index]['range']
-  if(new_range[0] != old_range[0]){
+  if (new_range[0] != old_range[0]) {
     seek_range_start(new_range[0])
-  }else if(new_range[1] != old_range[1]){
+  } else if (new_range[1] != old_range[1]) {
     seek_range_start(new_range[1])
   }
   new_range_list[range_list_index]['range'] = new_range
@@ -90,11 +99,12 @@ const deleteRangeListConfig = (range_list_index: number) => {
   filterStore.updateActiveConfig({ "range_list": new_range_list })
 }
 
-const active_config_number = computed(() => {
+const active_config_numbool = computed(() => {
   if (!active_config) return {}
-  const res: Record<string, number> = {}
+  const res: Record<string, number | boolean> = {}
   for (const key in active_config.value) {
-    if (typeof (active_config.value as any)[key] === "number")
+    if (typeof (active_config.value as any)[key] === "number" ||
+      typeof (active_config.value as any)[key] === "boolean")
       res[key] = (active_config.value as any)[key] as number
   }
   return res
