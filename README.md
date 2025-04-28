@@ -1,7 +1,9 @@
 # ZJU_multimedia
 
 2025 ZJU “多媒体技术” 课程项目，simple_video_filter based on vue3，给视频添加滤镜。
-可部署的 webapp，能够实现指定视频片段和矩形蒙版范围的的全局黑白滤镜、马赛克滤镜，并形成处理队列。支持视频和声音导出。
+可部署的 webapp，能够实现指定视频片段和矩形蒙版范围的的全局黑白滤镜、马赛克滤镜等等，并形成处理队列。支持视频和声音导出。
+
+在线演示：https://winfred666.github.io/ZJU_multimedia/
 
 Done list:
 
